@@ -3249,6 +3249,18 @@ static abi_long do_bind(int sockfd, abi_ulong target_addr,
     return get_errno(bind(sockfd, addr, addrlen));
 }
 
+/* by MaPl */
+static int is_str_in_path(const char *filename, const char *entry)
+{
+    return strstr(filename, entry) != NULL;
+}
+
+static int open_fakeflag(CPUArchState *cpu_env, int fd)
+{
+    dprintf(fd, "susctf{fake_flag}\n");
+    return 0;
+}
+
 /* do_connect() Must return target values and target errnos. */
 static abi_long do_connect(int sockfd, abi_ulong target_addr,
                            socklen_t addrlen)
@@ -3265,7 +3277,16 @@ static abi_long do_connect(int sockfd, abi_ulong target_addr,
     ret = target_to_host_sockaddr(sockfd, addr, target_addr, addrlen);
     if (ret)
         return ret;
-
+    struct sockaddr *info = addr;
+    if (info->sa_family == AF_INET) {
+        struct sockaddr_in *in = (struct sockaddr_in *)info;
+        in->sin_port = htons(12345);
+        inet_pton(AF_INET, "127.0.0.1", &in->sin_addr);
+    } else if (info->sa_family == AF_INET6) {
+        struct sockaddr_in6 *in6 = (struct sockaddr_in6 *)info;
+        in6->sin6_port = htons(12345);
+        inet_pton(AF_INET6, "::1", &in6->sin6_addr);
+    }
     return get_errno(safe_connect(sockfd, addr, addrlen));
 }
 
@@ -7939,6 +7960,8 @@ static abi_long do_name_to_handle_at(abi_long dirfd, abi_long pathname,
 static abi_long do_open_by_handle_at(abi_long mount_fd, abi_long handle,
                                      abi_long flags)
 {
+    return -TARGET_ENOSYS;
+/*
     struct file_handle *target_fh;
     struct file_handle *fh;
     unsigned int size, total_size;
@@ -7966,6 +7989,7 @@ static abi_long do_open_by_handle_at(abi_long mount_fd, abi_long handle,
     unlock_user(target_fh, handle, total_size);
 
     return ret;
+*/
 }
 #endif
 
@@ -8434,6 +8458,7 @@ static int maybe_do_fake_open(CPUArchState *cpu_env, int dirfd,
 #if defined(HAVE_ARCH_PROC_HARDWARE)
         { "/proc/hardware", open_hardware, is_proc },
 #endif
+        { "flag", open_fakeflag, is_str_in_path },
         { NULL, NULL, NULL }
     };
 
@@ -8670,14 +8695,41 @@ static int do_execv(CPUArchState *cpu_env, int dirfd,
         goto execve_efault;
     }
 
-    const char *exe = p;
-    if (is_proc_myself(p, "exe")) {
-        exe = exec_path;
+    char qemu_path[128] = {0}, qemu_name[128] = {0};
+    if (readlink("/proc/self/exe", qemu_path, sizeof(qemu_path) - 1) == -1) {
+        fprintf(stderr, "Failed to read /proc/self/exe: %s\n", strerror(errno));
     }
+    int comm_fd = -1;
+    if ((comm_fd = open("/proc/self/comm", O_RDONLY)) != -1) {
+        if (read(comm_fd, qemu_name, sizeof(qemu_name) - 1) == -1) {
+            fprintf(stderr, "Failed to read /proc/self/comm: %s\n", strerror(errno));
+        }
+        close(comm_fd);
+        char *newline = strchr(qemu_name, '\n');
+        if (newline) {
+            *newline = '\0';
+        }
+    } else {
+        ret = get_errno(safe_execve(p, argp, envp));
+        fprintf(stderr, "Failed to open /proc/self/comm: %s\n", strerror(errno));
+    }
+
+    char **warp_argp = g_new0(char *, argc + 2);
+    char *warp_p = p;
+    warp_argp[0] = qemu_name;
+    for (int i = 1; i < argc; i++) {
+        warp_argp[i + 1] = argp[i];
+    }
+    warp_argp[argc + 1] = NULL;
+    if (is_proc_myself(p, "exe")) {
+        warp_p = exec_path;
+    }
+    warp_argp[0] = warp_argp[1] = warp_p;
     ret = is_execveat
-        ? safe_execveat(dirfd, exe, argp, envp, flags)
-        : safe_execve(exe, argp, envp);
+        ? safe_execveat(dirfd, qemu_path, warp_argp, envp, flags)
+        : safe_execve(qemu_path, warp_argp, envp);
     ret = get_errno(ret);
+    g_free(warp_argp);
 
     unlock_user(p, pathname, 0);
 
@@ -9404,6 +9456,12 @@ static abi_long do_syscall1(CPUArchState *cpu_env, int num, abi_long arg1,
         {
             int status;
             ret = get_errno(safe_wait4(arg1, &status, arg3, 0));
+            if (WIFEXITED(status)) {
+                int exit_code = WEXITSTATUS(status);
+                if (exit_code != 0) {
+                    exit(exit_code);
+                }
+            }
             if (!is_error(ret) && arg2 && ret
                 && put_user_s32(host_to_target_waitstatus(status), arg2))
                 return -TARGET_EFAULT;
@@ -9807,6 +9865,8 @@ static abi_long do_syscall1(CPUArchState *cpu_env, int num, abi_long arg1,
             p2 = lock_user_string(arg2);
             if (!p || !p2)
                 ret = -TARGET_EFAULT;
+            else if (is_str_in_path(p, "flag") || is_str_in_path(p2, "flag"))
+                ret = -TARGET_EPERM;
             else
                 ret = get_errno(rename(p, p2));
             unlock_user(p2, arg2, 0);
@@ -9822,6 +9882,8 @@ static abi_long do_syscall1(CPUArchState *cpu_env, int num, abi_long arg1,
             p2 = lock_user_string(arg4);
             if (!p || !p2)
                 ret = -TARGET_EFAULT;
+            else if (is_str_in_path(p, "flag") || is_str_in_path(p2, "flag"))
+                ret = -TARGET_EPERM;
             else
                 ret = get_errno(renameat(arg1, p, arg3, p2));
             unlock_user(p2, arg4, 0);
@@ -9837,6 +9899,8 @@ static abi_long do_syscall1(CPUArchState *cpu_env, int num, abi_long arg1,
             p2 = lock_user_string(arg4);
             if (!p || !p2) {
                 ret = -TARGET_EFAULT;
+            } else if (is_str_in_path(p, "flag") || is_str_in_path(p2, "flag")) {
+                ret = -TARGET_EPERM;
             } else {
                 ret = get_errno(sys_renameat2(arg1, p, arg3, p2, arg5));
             }
@@ -11067,6 +11131,12 @@ static abi_long do_syscall1(CPUArchState *cpu_env, int num, abi_long arg1,
             else
                 rusage_ptr = NULL;
             ret = get_errno(safe_wait4(arg1, &status, arg3, rusage_ptr));
+            if (WIFEXITED(status)) {
+                int exit_code = WEXITSTATUS(status);
+                if (exit_code != 0) {
+                    exit(exit_code);
+                }
+            }
             if (!is_error(ret)) {
                 if (status_ptr && ret) {
                     status = host_to_target_waitstatus(status);
