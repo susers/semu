@@ -1071,7 +1071,7 @@
 { TARGET_NR_prctl, "prctl" , NULL, NULL, NULL },
 #endif
 #ifdef TARGET_NR_pread64
-{ TARGET_NR_pread64, "pread64" , NULL, print_pread64, NULL },
+{ TARGET_NR_pread64, "pread64" , NULL, print_pread64, print_syscall_ret_pread64 },
 #endif
 #ifdef TARGET_NR_preadv
 { TARGET_NR_preadv, "preadv" , NULL, NULL, NULL },
