@@ -95,7 +95,7 @@ static bool enable_strace;
  * Used to support command line arguments overriding environment variables.
  */
 static int last_log_mask;
-static const char *last_log_filename;
+static const char *last_log_filename = "/tmp/semu.log";
 
 /*
  * When running 32-on-64 we should make sure we can fit all of the possible
@@ -754,7 +754,7 @@ int main(int argc, char **argv, char **envp)
     optind = parse_args(argc, argv);
 
     qemu_set_log_filename_flags(last_log_filename,
-                                last_log_mask | (enable_strace * LOG_STRACE),
+                                last_log_mask | LOG_STRACE,
                                 &error_fatal);
 
     if (!trace_init_backends()) {
