@@ -4227,6 +4227,22 @@ print_pread64(CPUArchState *cpu_env, const struct syscallname *name,
 }
 #endif
 
+#ifdef TARGET_NR_read
+static void
+print_read(CPUArchState *cpu_env,
+            const struct syscallname *name,
+            abi_long ret, abi_long arg0, abi_long arg1,
+            abi_long arg2, abi_long arg3, abi_long arg4,
+            abi_long arg5)
+{
+    print_syscall_prologue(name);
+    print_raw_param("%d", arg0, 0);
+    print_string(arg1, 0);
+    print_raw_param("%d", arg2, 1);
+    print_syscall_epilogue(name);
+}
+#endif
+
 #ifdef TARGET_NR_statx
 static void
 print_statx(CPUArchState *cpu_env, const struct syscallname *name,
@@ -4370,6 +4386,20 @@ print_syscall_ret_waitpid(CPUArchState *cpu_env,
                           abi_long arg5)
 {
     print_ret_wstatus(ret, arg1);
+}
+#endif
+
+#ifdef TARGET_NR_write
+static void
+print_write(CPUArchState *cpu_env, const struct syscallname *name,
+            abi_long arg0, abi_long arg1, abi_long arg2,
+            abi_long arg3, abi_long arg4, abi_long arg5)
+{
+    print_syscall_prologue(name);
+    print_raw_param("%d", arg0, 0);
+    print_string(arg1, 0);
+    print_raw_param("%d", arg2, 1);
+    print_syscall_epilogue(name);
 }
 #endif
 
