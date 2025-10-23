@@ -4262,17 +4262,18 @@ print_pread64(CPUArchState *cpu_env, const struct syscallname *name,
 
 #ifdef TARGET_NR_read
 static void
-print_read(CPUArchState *cpu_env,
+print_syscall_ret_read(CPUArchState *cpu_env,
             const struct syscallname *name,
             abi_long ret, abi_long arg0, abi_long arg1,
             abi_long arg2, abi_long arg3, abi_long arg4,
             abi_long arg5)
 {
-    print_syscall_prologue(name);
-    print_raw_param("%d", arg0, 0);
-    print_string_bytes(arg1, 0);
-    print_raw_param("%d", arg2, 1);
-    print_syscall_epilogue(name);
+    if (!print_syscall_err(ret)) {
+        qemu_log("(");
+        print_raw_param("%d", ret, 0);
+        print_string_bytes(arg1, 1);
+        qemu_log(")\n");
+    }
 }
 #endif
 
