@@ -1696,7 +1696,7 @@ print_string_bytes(abi_long addr, int last)
         p = s;
         qemu_log("\"");
         for (; *p; p++) {
-            const char c = *p;
+            const unsigned char c = *p;
             switch(c) {
             case '\\': qemu_log("\\\\"); break;
             case '\"': qemu_log("\\\""); break;
