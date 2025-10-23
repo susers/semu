@@ -88,6 +88,7 @@ UNUSED static void print_open_flags(abi_long, int);
 UNUSED static void print_syscall_prologue(const struct syscallname *);
 UNUSED static void print_syscall_epilogue(const struct syscallname *);
 UNUSED static void print_string(abi_long, int);
+UNUSED static void print_string_bytes(abi_long addr, abi_long len, int last);
 UNUSED static void print_buf(abi_long addr, abi_long len, int last);
 UNUSED static void print_raw_param(const char *, abi_long, int);
 UNUSED static void print_raw_param64(const char *, long long, int last);
@@ -1687,16 +1688,15 @@ print_string(abi_long addr, int last)
 }
 
 static void
-print_string_bytes(abi_long addr, int last)
+print_string_bytes(abi_long addr, abi_long len, int last)
 {
     char *s;
-    const char *p;
+    int i;
 
-    if ((s = lock_user_string(addr)) != NULL) {
-        p = s;
+    if ((s = lock_user(VERIFY_READ, addr, len, 1)) != NULL) {
         qemu_log("\"");
-        for (; *p; p++) {
-            const unsigned char c = *p;
+        for (i = 0; i < len; i++) {
+            const unsigned char c = s[i];
             switch(c) {
             case '\\': qemu_log("\\\\"); break;
             case '\"': qemu_log("\\\""); break;
@@ -1704,11 +1704,10 @@ print_string_bytes(abi_long addr, int last)
             case '\r': qemu_log("\\r"); break;
             case '\t': qemu_log("\\t"); break;
             default:
-                /* non-printable */
-                if (c < 0x20 || c >= 0x7f)
-                    qemu_log("\\x%02x", c);
-                else
+                if (isprint(c))
                     qemu_log("%c", c);
+                else /* non-printable */
+                    qemu_log("\\x%02x", c);
             }
         }
         qemu_log("\"%s", get_comma(last));
@@ -4269,7 +4268,7 @@ print_syscall_ret_pread64(CPUArchState *cpu_env,
     if (!print_syscall_err(ret)) {
         qemu_log("(");
         print_raw_param("%d", ret, 0);
-        print_string_bytes(arg1, 1);
+        print_string_bytes(arg1, ret, 1);
         qemu_log(")\n");
     }
 }
@@ -4286,7 +4285,7 @@ print_syscall_ret_read(CPUArchState *cpu_env,
     if (!print_syscall_err(ret)) {
         qemu_log("(");
         print_raw_param("%d", ret, 0);
-        print_string_bytes(arg1, 1);
+        print_string_bytes(arg1, ret, 1);
         qemu_log(")\n");
     }
 }
@@ -4446,7 +4445,7 @@ print_write(CPUArchState *cpu_env, const struct syscallname *name,
 {
     print_syscall_prologue(name);
     print_raw_param("%d", arg0, 0);
-    print_string_bytes(arg1, 0);
+    print_string_bytes(arg1, arg2, 0);
     print_raw_param("%d", arg2, 1);
     print_syscall_epilogue(name);
 }
