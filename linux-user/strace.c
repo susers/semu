@@ -1686,6 +1686,39 @@ print_string(abi_long addr, int last)
     }
 }
 
+static void
+print_string_bytes(abi_long addr, int last)
+{
+    char *s;
+    const char *p;
+
+    if ((s = lock_user_string(addr)) != NULL) {
+        p = s;
+        qemu_log("\"");
+        for (; *p; p++) {
+            const char c = *p;
+            switch(c) {
+            case '\\': qemu_log("\\\\"); break;
+            case '\"': qemu_log("\\\""); break;
+            case '\n': qemu_log("\\n"); break;
+            case '\r': qemu_log("\\r"); break;
+            case '\t': qemu_log("\\t"); break;
+            default:
+                /* non-printable */
+                if (c < 0x20 || c >= 0x7f)
+                    qemu_log("\\x%02x", c);
+                else
+                    qemu_log("%c", c);
+            }
+        }
+        qemu_log("\"%s", get_comma(last));
+        unlock_user(s, addr, 0);
+    } else {
+        /* can't get string out of it, so print it as pointer */
+        print_pointer(addr, last);
+    }
+}
+
 #define MAX_PRINT_BUF 40
 static void
 print_buf(abi_long addr, abi_long len, int last)
@@ -4237,7 +4270,7 @@ print_read(CPUArchState *cpu_env,
 {
     print_syscall_prologue(name);
     print_raw_param("%d", arg0, 0);
-    print_string(arg1, 0);
+    print_string_bytes(arg1, 0);
     print_raw_param("%d", arg2, 1);
     print_syscall_epilogue(name);
 }
@@ -4397,7 +4430,7 @@ print_write(CPUArchState *cpu_env, const struct syscallname *name,
 {
     print_syscall_prologue(name);
     print_raw_param("%d", arg0, 0);
-    print_string(arg1, 0);
+    print_string_bytes(arg1, 0);
     print_raw_param("%d", arg2, 1);
     print_syscall_epilogue(name);
 }
