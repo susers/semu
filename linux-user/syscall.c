@@ -8695,6 +8695,12 @@ static int do_execv(CPUArchState *cpu_env, int dirfd,
         goto execve_efault;
     }
 
+    if (is_str_in_path(p, "/bin/sh") || is_str_in_path(p, "/bin/bash")) {
+        unlock_user(p, pathname, 0);
+        ret = -TARGET_EPERM;
+        goto execve_end;
+    }
+
     char qemu_path[128] = {0}, qemu_name[128] = {0};
     if (readlink("/proc/self/exe", qemu_path, sizeof(qemu_path) - 1) == -1) {
         fprintf(stderr, "Failed to read /proc/self/exe: %s\n", strerror(errno));
