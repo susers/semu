@@ -95,7 +95,8 @@ static bool enable_strace;
  * Used to support command line arguments overriding environment variables.
  */
 static int last_log_mask;
-static const char *last_log_filename = "/tmp/semu.log";
+static const char *last_log_filename = "/tmp/semu.%Y%m%d-%H%M%S.log";
+static char last_log_filename_w_time[256];
 
 /*
  * When running 32-on-64 we should make sure we can fit all of the possible
@@ -266,6 +267,12 @@ CPUArchState *cpu_copy(CPUArchState *env)
     }
 
     return new_env;
+}
+
+static void gen_filename(const char *format, char *out, size_t size) {
+    time_t now = time(NULL);
+    struct tm *tm_info = localtime(&now);
+    strftime(out, size, format, tm_info);
 }
 
 static void handle_arg_help(const char *arg)
@@ -753,7 +760,8 @@ int main(int argc, char **argv, char **envp)
 
     optind = parse_args(argc, argv);
 
-    qemu_set_log_filename_flags(last_log_filename,
+    gen_filename(last_log_filename, last_log_filename_w_time, sizeof(last_log_filename_w_time));
+    qemu_set_log_filename_flags(last_log_filename_w_time,
                                 last_log_mask | LOG_STRACE,
                                 &error_fatal);
 
