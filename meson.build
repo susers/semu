@@ -4444,7 +4444,7 @@ foreach target : target_dirs
     endif
   else
     execs = [{
-      'name': 'qemu-' + target_name,
+      'name': 'semu-' + target_name,
       'win_subsystem': 'console',
       'sources': [],
       'dependencies': []
