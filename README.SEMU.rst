@@ -26,4 +26,12 @@ of other UNIX targets. The simple steps to build SEMU on Ubuntu are:
   ../configure --target-list=x86_64-linux-user --static
   make
 
-You'll then get a static binary called `semu-x86_64`.
+You'll then get a static binary called ``semu-x86_64``.
+
+Running
+=======
+
+By default, SEMU blocks all outbound network request and disallow execv-ing
+``/bin/sh``; any read on ``flag`` would also just return a fake one.
+
+The runtime strace log would be saved to ``/tmp/semu.%Y%m%d-%H%M%S.log``.
